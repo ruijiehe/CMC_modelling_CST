@@ -1,0 +1,156 @@
+' Construct / Common Mode Choke / Toroidal Coil
+'-----------------------------------------------------------------------------------------------------------------------------
+' History Of Changes
+'-----------------------------------------------------------------------------------------------------------------------------
+' 25-Jan-2019 rhe: Revise to single layer CMC, add thin wire option.
+' 25-Jan-2019 rhe: Revise to single layer CMC, compatible for CST2015~2018.
+'                  The connecting wires are arranged such that the CMC stands on the PCB
+' 18-Jan-2019 rhe: Initial version
+'-----------------------------------------------------------------------------------------------------------------------------
+'#Language "WWB-COM"
+
+Option Explicit
+
+Sub Main
+Dim cst_core_r As Double, cst_core_w As Double, cst_core_h As Double, cst_core_i As Integer
+Dim cst_core_x As Double, cst_core_y As Double, cst_core_z As Double, cst_wire_r As Double
+Dim cst_wire_N As Integer, cst_result As Integer, cst_symm_term As Integer
+Dim scst_core_DI As String, scst_core_DE As String, scst_core_HE As String, scst_core_i As String
+Dim scst_core_x As String, scst_core_y As String, scst_core_z As String, scst_wire_r As String
+Dim scst_wire_N As String, scst_symm_term As Integer
+Dim scst_alpha As String, cst_alpha  As Double
+Dim cst_beta As Double, cst_theta As Double
+Dim cst_startAng As Double
+
+Dim thinBool As Boolean
+Dim max_wR As Double
+Dim defaultDI As String, defaultDE As String,defaultHE As String,defaultwR As String,defaultN As String,defaultA As String
+
+
+
+
+With Units
+     .Geometry "mm"
+     .Frequency "Hz"
+     .Time "s"
+     .TemperatureUnit "Kelvin"
+     .Voltage "V"
+     .Current "A"
+     .Resistance "Ohm"
+     .Conductance "Siemens"
+     .Capacitance "PikoF"
+     .Inductance "NanoH"
+End With
+ChangeSolverType "HF Frequency Domain"
+CurDir
+'@ dialog for parameter input
+Dim cst_npar As Integer , cst_ii As Integer
+Dim cst_para_defined As Boolean, cst_wR_defined As Boolean
+Dim cst_al_defined As Boolean, cst_bT_defined As Boolean
+Dim cst_DE_defined As Boolean, cst_DI_defined As Boolean
+Dim cst_HE_defined As Boolean, cst_N_defined As Boolean
+
+cst_npar = GetNumberOfParameters
+For cst_ii = 0 To cst_npar-1
+		If GetParameterName (cst_ii) = "alpha" Then cst_al_defined = True
+		If GetParameterName (cst_ii) = "boolThin" Then cst_bT_defined = True
+		If GetParameterName (cst_ii) = "DE" Then cst_DE_defined = True
+		If GetParameterName (cst_ii) = "DI" Then cst_DI_defined = True
+		If GetParameterName (cst_ii) = "HE" Then cst_HE_defined = True
+		If GetParameterName (cst_ii) = "N" Then cst_N_defined = True
+		If GetParameterName (cst_ii) = "wR" Then cst_wR_defined = True
+Next cst_ii
+
+cst_para_defined =cst_al_defined*cst_bT_defined*cst_DE_defined*cst_DI_defined*cst_HE_defined*cst_N_defined*cst_wR_defined 
+If Not cst_para_defined Then
+
+'check if parameters exist
+
+
+
+' dialog
+	Begin Dialog UserDialog 650,240,"Create 3D Toroidal Coil, rectangular core.  " ' %GRID:10,7,1,1
+		Text 30,25,130,14,"Core inner diameter",.Text1
+		Text 30,55,130,14,"Core outer diameter",.Text2
+		Text 30,85,90,14,"Core height",.Text3
+		Text 30,115,90,14,"Wire radius",.Text4
+		Text 30,145,90,14,"Turns",.Text5
+		Text 30,175,90,14,"Coverage",.Text6
+		TextBox 170,20,90,21,.DI
+		TextBox 170,50,90,21,.DE
+		TextBox 170,80,90,21,.HE
+		TextBox 170,110,90,21,.wr
+		TextBox 170,140,90,21,.n
+		TextBox 170,170,90,21,.alpha
+		Picture 290,7,350,227, GetInstallPath + "\Library\Macros\Construct\Coils\RectangularCoilToroidalCore.bmp",0,.Picture1
+		
+		CheckBox 50,133,90,14,"Thin Wire",.thinwire
+
+
+		OKButton 30,212,90,21
+		CancelButton 130,212,90,21
+		'CheckBox 30,168,210,14,"Symmetric Terminals",.symm_term
+	End Dialog
+	Dim dlg As UserDialog
+	dlg.DI = "17"
+	dlg.DE = "23"
+	dlg.HE = "10"
+	dlg.wr = "0.1"
+	dlg.n = "11"
+	dlg.alpha = "121"
+	'dlg.symm_term = 1
+	cst_result = Dialog(dlg)
+
+    If (cst_result = 0) Then Exit All
+
+	scst_core_DI = dlg.DI  ' Core radius
+	scst_core_DE = dlg.DE	' core width
+	scst_core_HE = dlg.HE	' core height
+	scst_wire_r = dlg.wr	' wire radius
+	scst_wire_N = dlg.n	' number of turns
+	scst_core_i = dlg.HE	' core height
+	scst_alpha = dlg.alpha	' winding coverage
+	thinBool = dlg.thinwire   ' thin wire model
+
+	scst_symm_term = 1  ' former dlg.symm_term	'symm terminals
+
+
+
+
+
+
+        cst_result = Evaluate(cst_result)
+        If (cst_result =0) Then Exit All   ' if cancel/help is clicked, exit all
+        If (cst_result =1) Then Exit All
+
+
+
+		cst_core_h       = Evaluate(scst_core_HE)
+		cst_wire_r       = Evaluate(scst_wire_r)
+		cst_wire_N       = Evaluate(scst_wire_N)
+		cst_alpha        = Evaluate(scst_alpha)
+
+		StoreDoubleParameter "DI" ,Evaluate(scst_core_DI)
+		SetParameterDescription ("DI", "Core's outer Diameter" )
+        StoreDoubleParameter "DE" ,Evaluate(scst_core_DE)
+		SetParameterDescription ("DE", "Core's inner Diameter" )
+        StoreDoubleParameter "HE" ,cst_core_h
+		SetParameterDescription ("HE", "Core's Height" )
+        StoreDoubleParameter "wR" ,cst_wire_r
+		SetParameterDescription ("wR", "Wire radius" )
+        StoreDoubleParameter "N" ,cst_wire_N
+		SetParameterDescription ("N", "Number of turns" )
+        StoreDoubleParameter "alpha" ,cst_alpha
+		SetParameterDescription ("alpha", "Coverage angle" )
+		StoreDoubleParameter "boolThin" ,Evaluate(thinBool)
+
+		cst_symm_term = cint(scst_symm_term)
+
+
+End If ' Check if N exists, or assign N from dialogue
+'----------
+'RunMacro("BuildCMC")
+'----------
+
+
+End Sub

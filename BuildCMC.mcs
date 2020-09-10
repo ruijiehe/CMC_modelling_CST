@@ -1,0 +1,514 @@
+'#Language "WWB-COM"
+
+Option Explicit
+
+Sub Main
+Dim cst_core_r As Double, cst_core_w As Double, cst_core_h As Double, cst_core_i As Integer
+Dim cst_core_x As Double, cst_core_y As Double, cst_core_z As Double, cst_wire_r As Double
+Dim cst_wire_N As Integer, cst_result As Integer, cst_symm_term As Integer
+Dim scst_core_DI As String, scst_core_DE As String, scst_core_HE As String, scst_core_i As String
+Dim scst_core_x As String, scst_core_y As String, scst_core_z As String, scst_wire_r As String
+Dim scst_wire_N As String, scst_symm_term As Integer
+Dim scst_alpha As String, cst_alpha  As Double
+Dim cst_beta As Double, cst_theta As Double
+Dim cst_startAng As Double
+Dim thinBool As Boolean
+Dim max_wR As Double
+Dim defaultDI As String, defaultDE As String,defaultHE As String,defaultwR As String,defaultN As String,defaultA As String
+'cst_core_r       = 0.5 * (0.5 * (Evaluate(scst_core_DI) + Evaluate(scst_core_DE)))
+'cst_core_w       = 0.5 * (Evaluate(scst_core_DE) - Evaluate(scst_core_DI))
+cst_core_r       = 0.5 * (0.5 * (DE + DI))
+cst_core_w       = 0.5 * (DE - DI)
+'  define one ring
+With Material
+	If Not .Exists("Wire_material") Then
+		.Reset
+		.Name "Wire_material"
+		.FrqType "hf"
+		.Type "Pec"
+		.Rho "0.0"
+		.Colour "1", "0.501961", "0"
+		.Wireframe "False"
+		.Transparency "0"
+		.Reflection "True"
+		.Create
+	End If
+End With
+If wR>0 And boolThin=0 Then
+	max_wR=DI/2*Tan(alpha/180*pi/2/(N-1))/(2*Tan(alpha/180*pi/2/(N-1))+1)
+	max_wR=min(max_wR,Sqr((DI/2+0.1)*(DI/2+0.1)-DI*DI/4))
+	If wR>=max_wR Then
+        ReportInformationToWindow("wire radius too large")
+	End If
+'  inner parallel
+With Brick
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Winding1"
+     .Material "Wire_material"
+     .Xrange -wR, wR
+     .Yrange cst_core_r-0.5*cst_core_w, cst_core_r-0.5*cst_core_w-2*wR
+     .Zrange -0.5*HE-wR*2, 0.5*HE+wR*2
+     .Create
+End With
+With Transform
+	cst_beta = alpha/(N)/180*pi
+     .Reset
+     .Name "Winding1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", cst_beta*180/pi
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions 1
+     .MultipleSelection "False"
+     .Destination ""
+     .Material ""
+     .Transform "Shape", "Rotate"
+End With
+'  upper surface
+With Brick
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Winding1"
+     .Material "Wire_material"
+     .Xrange -wR, wR
+     .Yrange cst_core_r+0.5*cst_core_w+wR*2, cst_core_r-0.5*cst_core_w-wR*2
+     .Zrange 0.5*HE+wR*2, 0.5*HE
+     .Create
+End With
+'  outer parallel
+With Brick
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Winding1"
+     .Material "Wire_material"
+     .Xrange -wR, wR
+     .Yrange cst_core_r+0.5*cst_core_w, cst_core_r+0.5*cst_core_w+2*wR
+     .Zrange -0.5*HE-wR*2, 0.5*HE+wR*2
+     .Create
+End With
+'  lower surface, need rotation
+With Polygon3D
+     .Reset
+     .Name "wire_3dpolygon"
+     .Curve "wire_curve"
+' up left
+    cst_core_x=-wR
+    cst_core_y=cst_core_r+0.5*cst_core_w
+	cst_core_z=-0.5*HE-wR*2
+     .Point cst_core_x, cst_core_y, cst_core_z
+' up right
+    cst_core_x=wR
+    cst_core_y=cst_core_r+0.5*cst_core_w
+	cst_core_z=-0.5*HE-wR*2
+     .Point cst_core_x, cst_core_y, cst_core_z
+	cst_theta =Atn(wR/(cst_core_r-0.5*cst_core_w))
+	Dim cst_wireRotationR As Double
+	cst_wireRotationR=Sqr(wR*wR+(cst_core_r-0.5*cst_core_w)*(cst_core_r-0.5*cst_core_w))
+' down left
+    cst_core_x=cst_wireRotationR*Sin(-cst_beta+cst_theta)
+	cst_core_y=cst_wireRotationR*Cos(-cst_beta+cst_theta)
+	cst_core_z=-0.5*HE-wR*2
+     .Point cst_core_x, cst_core_y, cst_core_z
+' down right
+	cst_core_x=cst_wireRotationR*Sin(-cst_beta-cst_theta)
+    cst_core_y=cst_wireRotationR*Cos(-cst_beta-cst_theta)
+		cst_core_z=-0.5*HE-wR*2
+	     .Point cst_core_x, cst_core_y, cst_core_z
+ ' up left
+	cst_core_x=-wR
+	cst_core_y=cst_core_r+0.5*cst_core_w
+	cst_core_z=-0.5*HE-wR*2
+	.Point cst_core_x, cst_core_y, cst_core_z
+   .Create
+End With
+' form a brick
+With ExtrudeCurve
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Winding1"
+     .Material "Wire_material"
+     .Thickness -wR*2
+     .Twistangle "0.0"
+     .Taperangle "0.0"
+     .Curve "wire_curve:wire_3dpolygon"
+     .Create
+End With
+' duplicate single ring
+With Transform
+     .Reset
+     .Name "Winding1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", cst_beta*180/pi
+     .MultipleObjects "True"
+     .GroupObjects "False"
+     .Repetitions N -1
+     .MultipleSelection "False"
+     .Destination ""
+     .Material ""
+     .Transform "Shape", "Rotate"
+End With
+' make connections to bottom
+Component.New "Connection1"
+' define additional connections at bottom
+With Brick
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Connection1"
+     .Material "Wire_material"
+     .Xrange -wR, wR
+     .Yrange cst_core_r+0.5*cst_core_w+wR*2, cst_core_r-0.5*cst_core_w-wR*2
+     .Zrange 0.5*HE+wR*3, 0.5*HE+wR*5
+     .Create
+End With
+With Transform
+	cst_beta = alpha/(N)
+     .Reset
+     .Name "Connection1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", alpha
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions 1
+     .MultipleSelection "False"
+     .Destination ""
+     .Material ""
+     .Transform "Shape", "Rotate"
+End With
+With Transform
+     .Reset
+     .Name "Connection1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .PlaneNormal "0", "0", "1"
+     .MultipleObjects "True"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "True"
+     .Destination ""
+     .Material ""
+     .Transform "Shape", "Mirror"
+End With
+'-------
+' find the two faces
+' connect two faces
+With AnalyticalFace
+     .Reset
+     .Name "face1"
+     .Component "face"
+     .Material "Wire_material"
+     .LawX "u"
+     .LawY cst_core_r-0.5*cst_core_w-2*wR
+     .LawZ "v"
+     .ParameterRangeU -wR, wR
+     .ParameterRangeV -5*wR-0.5*HE, -0.5*HE-3*wR
+     .Create
+End With
+With Transform
+cst_beta = alpha/(N)
+     .Reset
+     .Name "face"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", alpha
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Shape", "Rotate"
+End With
+With AnalyticalFace
+     .Reset
+     .Name "face0"
+     .Component "face"
+     .Material "Wire_material"
+     .LawX "u"
+     .LawY cst_core_r-0.5*cst_core_w-2*wR
+     .LawZ "v"
+     .ParameterRangeU -wR, wR
+     .ParameterRangeV -wR+0.5*HE+wR, wR+0.5*HE+wR
+     .Create
+End With
+Pick.PickFaceFromId "face:face0", "1"
+Pick.PickFaceFromId "face:face1", "1"
+With Loft
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Connection1"
+     .Material "Wire_material"
+     .Tangency "0.000000"
+     .CreateNew
+End With
+' extend last inner parallel
+With AnalyticalFace
+     .Reset
+     .Name "face1"
+     .Component "face2"
+     .Material "Wire_material"
+     .LawX "u"
+     .LawY "v"
+     .LawZ HE*0.5+2*wR
+     .ParameterRangeU -wR, wR
+     .ParameterRangeV cst_core_r-0.5*cst_core_w-2*wR,cst_core_r-0.5*cst_core_w
+     .Create
+End With
+With Transform
+cst_beta = alpha/(N)
+     .Reset
+     .Name "face2"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", alpha
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Shape", "Rotate"
+End With
+Pick.PickFaceFromId "face2:face1", "1"
+With Extrude
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Connection1"
+     .Material "Wire_material"
+     .Mode "Picks"
+     .Height wR*3
+     .Twist "0.0"
+     .Taper "0.0"
+     .UsePicksForHeight "False"
+     .DeleteBaseFaceSolid "False"
+     .ClearPickedFace "True"
+     .Create
+End With
+Component.Delete "face2"
+Component.Delete "face"
+' rotate to start angle
+With Transform
+	cst_beta = alpha/(N)
+	cst_startAng=(360-2*alpha)/4
+     .Reset
+     .Name "Winding1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", cst_startAng
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Shape", "Rotate"
+End With
+With Transform
+	cst_beta = alpha/(N)
+	cst_startAng=(360-2*alpha)/4
+     .Reset
+     .Name "Connection1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", cst_startAng
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Shape", "Rotate"
+End With
+' mirror and duplicate
+Component.New "Winding2"
+With Transform
+     .Reset
+     .Name "Winding1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .PlaneNormal "1", "0", "0"
+     .MultipleObjects "True"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Destination "Winding2"
+     .Material ""
+     .Transform "Shape", "Mirror"
+End With
+Component.New "Connection2"
+With Transform
+     .Reset
+     .Name "Connection1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .PlaneNormal "1", "0", "0"
+     .MultipleObjects "True"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Destination "Connection2"
+     .Material ""
+     .Transform "Shape", "Mirror"
+End With
+Else
+	max_wR=Sin(alpha/180*pi/2/(N-1))/(Sin(alpha/180*pi/2/(N-1))+1)*DI/2/2
+	If wR>=max_wR Then
+        ReportInformationToWindow("thin wire radius too large")
+	End If
+With Polygon3D
+     .Reset
+     .Name "core_3dpolygon"
+     .Curve "core_curve"
+	  cst_core_x=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+      cst_core_z=-0.5*HE-4*max(0.01,wR)
+     .Point cst_core_x, cst_core_y, cst_core_z
+	  cst_core_x=(cst_core_r-(0.5*cst_core_w+3*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r-(0.5*cst_core_w+3*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+      cst_core_z=-0.5*HE-4*max(0.01,wR)
+     .Point cst_core_x, cst_core_y, cst_core_z
+     For cst_core_i = 0 To N-1
+	  cst_core_x=(cst_core_r-(0.5*cst_core_w+wR))*Sin((cst_core_i)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r-(0.5*cst_core_w+wR))*Cos((cst_core_i)/N*pi*alpha/180)
+      cst_core_z=0.5*HE+wR
+     .Point cst_core_x, cst_core_y, cst_core_z
+	  cst_core_x=(cst_core_r+(0.5*cst_core_w+wR))*Sin((cst_core_i)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r+(0.5*cst_core_w+wR))*Cos((cst_core_i)/N*pi*alpha/180)
+      cst_core_z=0.5*HE+wR
+     .Point cst_core_x, cst_core_y, cst_core_z
+	  cst_core_x=(cst_core_r+0.5*cst_core_w+wR)*Sin((cst_core_i)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r+0.5*cst_core_w+wR)*Cos((cst_core_i)/N*pi*alpha/180)
+      cst_core_z=-0.5*HE-wR
+	  .Point cst_core_x, cst_core_y, cst_core_z
+      cst_core_x=(cst_core_r-(0.5*cst_core_w+wR))*Sin((cst_core_i+1)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r-(0.5*cst_core_w+wR))*Cos((cst_core_i+1)/N*pi*alpha/180)
+      cst_core_z=-0.5*HE-wR
+     .Point cst_core_x, cst_core_y, cst_core_z
+     Next cst_core_i
+cst_core_x=(cst_core_r-(0.5*cst_core_w+wR))*Sin((cst_core_i)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r-(0.5*cst_core_w+wR))*Cos((cst_core_i)/N*pi*alpha/180)
+      cst_core_z=0.5*HE+4*wR
+     .Point cst_core_x, cst_core_y, cst_core_z
+	  cst_core_x=(cst_core_r+(0.5*cst_core_w+2*wR))*Sin((cst_core_i)/N*pi*alpha/180)
+      cst_core_y=(cst_core_r+(0.5*cst_core_w+2*wR))*Cos((cst_core_i)/N*pi*alpha/180)
+      cst_core_z=0.5*HE+4*wR
+     .Point cst_core_x, cst_core_y, cst_core_z
+     '.Point cst_core_x, cst_core_y, cst_core_z
+    .Create
+End With
+'  create wire
+With Wire
+     .Reset
+     .Name "wire1"
+     .Folder "core_curve"
+     .Radius max(0.01,wR)
+     .Type "CurveWire"
+     .Curve "core_curve:core_3dpolygon"
+     .Material "PEC"
+     .SolidWireModel "False"
+     .Termination "Natural"
+     .Mitering "NewMiter"
+     .AdvancedChainSelection "True"
+     .Add
+End With
+'  rotate
+With Transform
+	cst_startAng=(360-2*alpha)/4
+     .Reset
+     .Name "core_curve"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", -cst_startAng
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Wire", "Rotate"
+End With
+With Transform
+     .Reset
+     .Name "core_curve"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .PlaneNormal "1", "0", "0"
+     .MultipleObjects "True"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Material ""
+     .Transform "Wire", "Mirror"
+End With
+End If
+'  define core
+With Material
+	If Not .Exists("Core_material") Then
+		.Reset
+		.Name "Core_material"
+		.FrqType "hf"
+		.Type "Normal"
+		.Rho "0.0"
+		.Colour "0", "0.5", "0.5"
+		.Wireframe "False"
+		.Transparency "0"
+		.Reflection "True"
+		.Create
+	End If
+End With
+With Cylinder
+     .Reset
+     .Name Solid.GetNextFreeName
+     .Component "Core"
+     .Material "Core_material"
+     .OuterRadius cst_core_r + cst_core_w/2-0.1
+     .InnerRadius cst_core_r - cst_core_w/2+0.1
+     .Axis "z"
+     .Zrange HE/2-0.1, -HE/2+0.1
+     .Xcenter "0"
+     .Ycenter "0"
+     .Segments "0"
+     .Create
+End With
+cst_core_x=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+cst_core_y=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+cst_core_z=-0.5*HE-4*max(0.01,wR)
+Pick.PickPointFromCoordinates cst_core_x, cst_core_y, cst_core_z
+cst_core_x=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+cst_core_y=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+cst_core_z=0.5*HE+4*wR
+Pick.PickPointFromCoordinates cst_core_x, cst_core_y, cst_core_z
+With DiscretePort
+     .Reset
+     .PortNumber "1"
+     .Type "SParameter"
+     .Label ""
+     .Folder ""
+     .Impedance "50.0"
+     .VoltagePortImpedance "0.0"
+     .Voltage "1.0"
+     .Current "1.0"
+cst_core_x=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+cst_core_y=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+cst_core_z=-0.5*HE-4*max(0.01,wR)
+     .SetP1 "True",cst_core_x, cst_core_y, cst_core_z
+cst_core_x=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Sin((N)/N*pi*alpha/180)
+cst_core_y=(cst_core_r+(0.5*cst_core_w+2*max(0.01,wR)))*Cos((N)/N*pi*alpha/180)
+cst_core_z=0.5*HE+4*wR
+	.SetP2 "True", cst_core_x, cst_core_y, cst_core_z
+     .InvertDirection "False"
+     .LocalCoordinates "False"
+     .Monitor "True"
+     .Radius "0.0"
+     .Wire ""
+     .Position "end1"
+     .Create
+End With
+With Transform
+	cst_startAng=(360-2*alpha)/4
+     .Reset
+     .Name "port1"
+     .Origin "Free"
+     .Center "0", "0", "0"
+     .Angle "0", "0", -cst_startAng
+     .MultipleObjects "False"
+     .GroupObjects "False"
+     .Repetitions "1"
+     .MultipleSelection "False"
+     .Transform "Port", "Rotate"
+End With
+
+End Sub
