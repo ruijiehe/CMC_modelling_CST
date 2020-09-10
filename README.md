@@ -6,3 +6,5 @@ Go to Macri pulldown
 Import macro (both files)
 Run check parameter from the pulldown
 Run BuildCMC from the pulldown
+
+To use the cover image, refer to change line 85 in CheckParameters.mcs
